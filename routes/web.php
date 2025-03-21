@@ -8,6 +8,7 @@ use App\Http\Controllers\Admin\CompanyController;
 use App\Http\Controllers\Admin\EmployeeController;
 use App\Http\Controllers\Admin\OnetimeExpensesController;
 use App\Http\Controllers\Admin\PayrollOverviewController;
+use App\Http\Controllers\Server\CommandController;
 
 Route::get('/', function () {
     return view('welcome');
@@ -73,6 +74,13 @@ Route::prefix('admin')->middleware(['auth', 'admin'])->group(function (): void {
     Route::post('/payroll/generate', [PayrollOverviewController::class, 'generatePayroll'])->name('admin.payroll.generate');
     Route::post('/payroll/{id}/mark-as-paid', [PayrollOverviewController::class, 'markAsPaid'])->name('admin.payroll.mark-as-paid');
     Route::post('/payroll/bulk-mark-as-paid', [PayrollOverviewController::class, 'bulkMarkAsPaid'])->name('admin.payroll.bulk-mark-as-paid');
+
+    Route::get('/server/commands', [CommandController::class, 'index'])->name('admin.server.commands');
+    Route::get('/server/commands/create', [CommandController::class, 'create'])->name('admin.server.commands.create');
+    Route::post('/server/commands/store', [CommandController::class, 'store'])->name('admin.server.commands.store');
+    Route::get('/server/commands/edit/{id}', [CommandController::class, 'edit'])->name('admin.server.commands.edit');
+    Route::post('/server/commands/update/{id}', [CommandController::class, 'update'])->name('admin.server.commands.update');
+    Route::delete('/server/commands/delete/{id}', [CommandController::class, 'destroy'])->name('admin.server.commands.delete');
 });
 
 // Server Managment routes
