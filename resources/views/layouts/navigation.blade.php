@@ -19,6 +19,34 @@
                 <div data-i18n="Analytics">Dashboard</div>
             </a>
         </li>
+        @if(Auth::user()->server_manager === 1 || Auth::user()->role === 'super-admin' || Auth::user()->role === 'admin')
+            <li class="menu-item {{ request()->routeIs('admin.server.*') ? 'active open' : '' }}">
+                <a href="javascript:void(0);" class="menu-link menu-toggle">
+                    <i class="menu-icon tf-icons bx bx-server"></i>
+                    <div data-i18n="Admin">Server Manager</div>
+                </a>
+
+                <ul class="menu-sub">
+                    <li class="menu-item">
+                        <a href="" class="menu-link">
+                            <div data-i18n="Company Settings">Servers</div>
+                        </a>
+                    </li>
+                    <li class="menu-item">
+                        <a href="" class="menu-link">
+                            <div data-i18n="Company Settings">Add Server</div>
+                        </a>
+                    </li>
+                    @if(Auth::user()->role === 'super-admin')
+                        <li class="menu-item {{ request()->routeIs('admin.server.commands*') ? 'active' : '' }}">
+                            <a href="{{ route('admin.server.commands') }}" class="menu-link">
+                                <div data-i18n="Company Settings">Command List</div>
+                            </a>
+                        </li>
+                    @endif
+                </ul>
+            </li>
+        @endif
         @if (Auth::user()->role === 'admin' || Auth::user()->role === 'super-admin')
             <li class="menu-item {{ request()->routeIs('admin.payroll.*') ? 'active open' : '' }}">
                 <a href="javascript:void(0);" class="menu-link menu-toggle">
