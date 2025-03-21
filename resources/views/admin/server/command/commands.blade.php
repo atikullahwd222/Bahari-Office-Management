@@ -63,13 +63,15 @@
                                         <i class='bx bxs-copy-alt'></i>
                                     </button>
                                 </td>
-                                <td>
-                                    <a href="{{ route('admin.server.commands.edit', $command->id) }}" class="btn btn-primary btn-sm">
-                                        Edit
-                                    </a>
-                                    <button type="button" class="btn btn-sm btn-danger delete-command" data-command-id="{{ $command->id }}" data-command-purpose="{{ $command->name }}">
-                                        <i class="bx bx-trash"></i>
-                                    </button>
+                                <td class="text-center" >
+                                    <div class="btn-group" role="group">
+                                        <a href="{{ route('admin.server.commands.edit', $command->id) }}" class="btn btn-primary btn-sm">
+                                            <i class="bx bx-pencil"></i>
+                                        </a>
+                                        <button type="button" class="btn btn-sm btn-danger delete-command" data-command-id="{{ $command->id }}" data-command-purpose="{{ $command->name }}">
+                                            <i class="bx bx-trash"></i>
+                                        </button>
+                                    </div>
                                 </td>
                             </tr>
                         @endforeach
