@@ -32,11 +32,6 @@
                             <div data-i18n="Company Settings">Servers</div>
                         </a>
                     </li>
-                    <li class="menu-item">
-                        <a href="" class="menu-link">
-                            <div data-i18n="Company Settings">Add Server</div>
-                        </a>
-                    </li>
                     @if(Auth::user()->role === 'super-admin')
                         <li class="menu-item {{ request()->routeIs('admin.server.commands*') ? 'active' : '' }}">
                             <a href="{{ route('admin.server.commands') }}" class="menu-link">

@@ -11,12 +11,12 @@ class CommandController extends Controller
     public function index()
     {
         $commands = ServerCommands::all();
-        return view('admin.server.commands', compact('commands'));
+        return view('admin.server.command.commands', compact('commands'));
     }
     
     public function create()
     {
-        return view('admin.server.create-command');
+        return view('admin.server.command.create-command');
     }
 
     public function store(Request $request)
@@ -42,7 +42,7 @@ class CommandController extends Controller
             return redirect()->route('admin.server.commands')->with('error', 'Command not found.');
         }
 
-        return view('admin.server.edit-command', compact('command'));
+        return view('admin.server.command.edit-command', compact('command'));
     }
 
     public function update(Request $request, $id)

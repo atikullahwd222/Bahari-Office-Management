@@ -9,6 +9,7 @@ use App\Http\Controllers\Admin\EmployeeController;
 use App\Http\Controllers\Admin\OnetimeExpensesController;
 use App\Http\Controllers\Admin\PayrollOverviewController;
 use App\Http\Controllers\Server\CommandController;
+use App\Http\Controllers\Server\ServerController;
 
 Route::get('/', function () {
     return view('welcome');
@@ -81,11 +82,12 @@ Route::prefix('admin')->middleware(['auth', 'admin'])->group(function (): void {
     Route::get('/server/commands/edit/{id}', [CommandController::class, 'edit'])->name('admin.server.commands.edit');
     Route::post('/server/commands/update/{id}', [CommandController::class, 'update'])->name('admin.server.commands.update');
     Route::delete('/server/commands/delete/{id}', [CommandController::class, 'destroy'])->name('admin.server.commands.delete');
+
 });
 
 // Server Managment routes
 Route::middleware(['auth', 'verified'])->group(function () {
-    
+    Route::get('/server', [ServerController::class, 'index'])->name('admin.server.index');
 });
 
 Route::post('/admin/payroll/settings/update', [PayrollOverviewController::class, 'updateSettings'])
