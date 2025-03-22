@@ -14,12 +14,15 @@ return new class extends Migration
         Schema::create('servers', function (Blueprint $table) {
             $table->id();
             $table->string('name');
+            $table->string('hostname');
             $table->string('ip');
             $table->string('port');
             $table->string('username');
             $table->string('password');
             $table->string('license');
             $table->string('company_uid');
+            $table->string('control_panel');
+            $table->boolean('status')->default(1);
             $table->timestamps();
         });
     }

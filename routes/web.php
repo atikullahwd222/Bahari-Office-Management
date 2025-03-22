@@ -10,6 +10,9 @@ use App\Http\Controllers\Admin\OnetimeExpensesController;
 use App\Http\Controllers\Admin\PayrollOverviewController;
 use App\Http\Controllers\Server\CommandController;
 use App\Http\Controllers\Server\ServerController;
+use Symfony\Component\Process\Process;
+use Symfony\Component\Process\Exception\ProcessFailedException;
+use Illuminate\Http\Request;
 
 Route::get('/', function () {
     return view('welcome');
@@ -76,18 +79,40 @@ Route::prefix('admin')->middleware(['auth', 'admin'])->group(function (): void {
     Route::post('/payroll/{id}/mark-as-paid', [PayrollOverviewController::class, 'markAsPaid'])->name('admin.payroll.mark-as-paid');
     Route::post('/payroll/bulk-mark-as-paid', [PayrollOverviewController::class, 'bulkMarkAsPaid'])->name('admin.payroll.bulk-mark-as-paid');
 
-    Route::get('/server/commands', [CommandController::class, 'index'])->name('admin.server.commands');
     Route::get('/server/commands/create', [CommandController::class, 'create'])->name('admin.server.commands.create');
     Route::post('/server/commands/store', [CommandController::class, 'store'])->name('admin.server.commands.store');
     Route::get('/server/commands/edit/{id}', [CommandController::class, 'edit'])->name('admin.server.commands.edit');
     Route::post('/server/commands/update/{id}', [CommandController::class, 'update'])->name('admin.server.commands.update');
     Route::delete('/server/commands/delete/{id}', [CommandController::class, 'destroy'])->name('admin.server.commands.delete');
-
+    
 });
 
 // Server Managment routes
 Route::middleware(['auth', 'verified'])->group(function () {
+    Route::get('/server/commands', [CommandController::class, 'index'])->name('admin.server.commands');
+
     Route::get('/server', [ServerController::class, 'index'])->name('admin.server.index');
+    Route::get('/server/create', [ServerController::class, 'create'])->name('admin.server.create');
+    Route::post('/server/store', [ServerController::class, 'store'])->name('admin.server.store');
+    Route::get('/server/edit/{id}', [ServerController::class, 'edit'])->name('admin.server.edit');
+    Route::post('/server/update/{id}', [ServerController::class, 'update'])->name('admin.server.update');
+    Route::delete('/server/delete/{id}', [ServerController::class, 'destroy'])->name('admin.server.delete');
+    Route::get('/server/{id}/console', [ServerController::class, 'console'])->name('admin.server.console');
+    Route::get('/server/exec/{serverId}', [ServerController::class, 'exec'])->name('admin.server.command.exec');
+});
+
+
+Route::get('/server-status/{ip}', function ($ip) {
+    if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
+        $process = new Process(["ping", "-n", "1", $ip]);
+    } else {
+        $process = new Process(["ping", "-c", "1", "-W", "1", $ip]);
+    }
+
+    $process->run();
+    $status = $process->isSuccessful() ? 'Online' : 'Offline';
+
+    return response()->json(['status' => $status]);
 });
 
 Route::post('/admin/payroll/settings/update', [PayrollOverviewController::class, 'updateSettings'])
