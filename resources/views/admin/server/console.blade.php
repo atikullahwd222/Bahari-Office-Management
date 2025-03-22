@@ -55,8 +55,107 @@
         </div>
         
     </div>
+        @push('scripts')
+    <script>
+    $(document).on('click', '.exec-command', function() {
+        var serverId = $(this).data('server-id');
+        var command = $(this).data('command');
+        var isExecuting = true;
+        var commandCompleted = false;
     
-
+        // Clear previous output
+        $('#commandOutput').empty().text('Connecting...');
+        
+        // Show the modal
+        $('#commandOutputModal').modal('show');
+    
+        // Create URL for EventSource
+        var url = new URL('{{ route('admin.server.command.exec', '') }}/' + serverId);
+        url.searchParams.append('server_id', serverId);
+        url.searchParams.append('command', command);
+        
+        // Create new EventSource connection
+        var source = new EventSource(url.toString());
+    
+        source.onopen = function() {
+            $('#commandOutput').empty();
+            console.log('Connection established');
+        };
+    
+        source.onmessage = function(event) {
+            try {
+                // Try parsing as JSON first
+                var data = JSON.parse(event.data);
+                
+                if (data.output) {
+                    $('#commandOutput').append(ansiToHtml(data.output));
+                }
+                
+                // Check if command completed
+                if (data.status === 'completed') {
+                    commandCompleted = true;
+                    isExecuting = false;
+                    $('#commandOutput').append('\nCommand completed successfully.\n');
+                    source.close();
+                }
+            } catch (e) {
+                // If not JSON, treat as plain text
+                var rawData = event.data;
+                if (rawData.startsWith('data: ')) {
+                    rawData = rawData.substring(6);
+                }
+                $('#commandOutput').append(ansiToHtml(rawData));
+            }
+            
+            // Auto-scroll to bottom
+            var pre = $('#commandOutput')[0];
+            pre.scrollTop = pre.scrollHeight;
+        };
+    
+        source.onerror = function(event) {
+            // Only show error if command hasn't completed
+            if (isExecuting && !commandCompleted) {
+                console.error("EventSource error:", event);
+                $('#commandOutput').append('\nConnection closed.\n');
+            }
+            source.close();
+        };
+    
+        // Clean up when modal closes
+        $('#commandOutputModal').on('hidden.bs.modal', function () {
+            if (source) {
+                source.close();
+            }
+            isExecuting = false;
+        });
+    });
+    
+    // Helper function to convert ANSI color codes to HTML
+    function ansiToHtml(text) {
+        if (!text) return '';
+        
+        // Basic ANSI to HTML color conversion
+        return text
+            .replace(/\033\[0;31m/g, '<span style="color: red">')
+            .replace(/\033\[0;32m/g, '<span style="color: green">')
+            .replace(/\033\[0;33m/g, '<span style="color: yellow">')
+            .replace(/\033\[0m/g, '</span>')
+            .replace(/\n/g, '<br>');
+    }
+    </script>
+    @endpush
+    <style>
+        #commandOutput {
+            background-color: #1e1e1e;
+            color: #ffffff;
+            padding: 10px;
+            font-family: 'Courier New', monospace;
+            height: 400px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+    </style>
     <!-- Output Modal -->
 <div id="commandOutputModal" class="modal fade" tabindex="-1">
     <div class="modal-dialog">
@@ -80,6 +179,7 @@
 $(document).on('click', '.exec-command', function() {
     var serverId = $(this).data('server-id');
     var command = $(this).data('command');
+    var isExecuting = true;
 
     // Clear previous output
     $('#commandOutput').empty().text('Connecting...');
@@ -87,46 +187,75 @@ $(document).on('click', '.exec-command', function() {
     // Show the modal
     $('#commandOutputModal').modal('show');
 
-    // Get CSRF token
-    var csrfToken = $('meta[name="csrf-token"]').attr('content');
-
-    // Construct URL with proper parameters
+    // Create URL for EventSource
     var url = new URL('{{ route('admin.server.command.exec', '') }}/' + serverId);
     url.searchParams.append('command', command);
-    url.searchParams.append('_token', csrfToken);
-
+    url.searchParams.append('timestamp', Date.now()); // Prevent caching
+    
     // Create new EventSource connection
     var source = new EventSource(url.toString());
 
     source.onopen = function() {
         $('#commandOutput').empty();
+        console.log('Connection established');
     };
 
     source.onmessage = function(event) {
         try {
+            // Try parsing as JSON first
             var data = JSON.parse(event.data);
             if (data.output) {
-                $('#commandOutput').append(data.output);
+                $('#commandOutput').append(ansiToHtml(data.output));
+            }
+            // Check if command completed
+            if (data.status === 'completed') {
+                isExecuting = false;
+                source.close();
+                $('#commandOutput').append('\nCommand completed successfully.\n');
             }
         } catch (e) {
-            console.error('Failed to parse server response:', e);
-            $('#commandOutput').append(event.data + '\n');
+            // If not JSON, treat as plain text
+            var rawData = event.data;
+            if (rawData.startsWith('data: ')) {
+                rawData = rawData.substring(6);
+            }
+            $('#commandOutput').append(ansiToHtml(rawData) + '\n');
         }
+        
+        // Auto-scroll to bottom
+        var pre = $('#commandOutput')[0];
+        pre.scrollTop = pre.scrollHeight;
     };
 
     source.onerror = function(event) {
-        console.error("EventSource error:", event);
-        $('#commandOutput').append('\nConnection closed.\n');
+        if (isExecuting) {
+            console.error("EventSource error:", event);
+            $('#commandOutput').append('\nConnection closed.\n');
+        }
         source.close();
     };
 
     // Clean up when modal closes
     $('#commandOutputModal').on('hidden.bs.modal', function () {
-        source.close();
-        $('#commandOutput').empty();
+        if (source) {
+            source.close();
+        }
+        isExecuting = false;
     });
 });
 
+// Helper function to convert ANSI color codes to HTML
+function ansiToHtml(text) {
+    if (!text) return '';
+    
+    // Basic ANSI to HTML color conversion
+    return text
+        .replace(/\033\[0;31m/g, '<span style="color: red">')
+        .replace(/\033\[0;32m/g, '<span style="color: green">')
+        .replace(/\033\[0;33m/g, '<span style="color: yellow">')
+        .replace(/\033\[0m/g, '</span>')
+        .replace(/\n/g, '<br>');
+}
 </script>
 @endpush
         
