@@ -28,7 +28,7 @@
 
                 <ul class="menu-sub">
                     <li class="menu-item">
-                        <a href="" class="menu-link">
+                        <a href="{{ route('admin.server.index') }}" class="menu-link">
                             <div data-i18n="Company Settings">Servers</div>
                         </a>
                     </li>
