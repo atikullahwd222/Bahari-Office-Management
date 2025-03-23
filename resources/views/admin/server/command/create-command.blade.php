@@ -44,7 +44,7 @@
 
                 <div class="mb-3">
                     <label for="full_command" class="form-label">Command</label>
-                    <input type="text" class="form-control" id="full_command" name="full_command" value="{{ old('full_command') }}">
+                    <textarea type="text" class="form-control" id="full_command" name="full_command">{{ old('full_command') }}</textarea>
                     @if ($errors->has('full_command'))
                         <div class="text-danger mt-2">{{ $errors->first('full_command') }}</div>
                     @endif

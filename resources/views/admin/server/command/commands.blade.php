@@ -43,6 +43,7 @@
                         <tr>
                             <th>Software Name</th>
                             <th>Command</th>
+                            <th>License</th>
                             <th>Copy</th>
                             @if ($user->role == "super-admin")
                                 <th>Action</th>
@@ -59,6 +60,9 @@
                                     <span id="command-{{ $command->id }}" title="{{ $command->full_command }}">
                                         {{ $command->full_command }}
                                     </span>
+                                </td>
+                                <td class="text-center text-uppercase">
+                                        {{ $command->licensing_system }} Lisencig
                                 </td>
                                 <td class="text-center">
                                     <button class="btn btn-sm btn-outline-primary" onclick="copyToClipboard('command-{{ $command->id }}')" title="Copy">

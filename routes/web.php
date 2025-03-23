@@ -98,22 +98,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/server/update/{id}', [ServerController::class, 'update'])->name('admin.server.update');
     Route::delete('/server/delete/{id}', [ServerController::class, 'destroy'])->name('admin.server.delete');
     Route::get('/server/{id}/console', [ServerController::class, 'console'])->name('admin.server.console');
-    Route::get('/server/exec/{serverId}', [ServerController::class, 'exec'])->name('admin.server.command.exec');
+    Route::get('/server/exec/{serverId}', [ServerController::class, 'exicute'])->name('admin.server.command.exec');
 });
 
-
-Route::get('/server-status/{ip}', function ($ip) {
-    if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
-        $process = new Process(["ping", "-n", "1", $ip]);
-    } else {
-        $process = new Process(["ping", "-c", "1", "-W", "1", $ip]);
-    }
-
-    $process->run();
-    $status = $process->isSuccessful() ? 'Online' : 'Offline';
-
-    return response()->json(['status' => $status]);
-});
 
 Route::post('/admin/payroll/settings/update', [PayrollOverviewController::class, 'updateSettings'])
     ->name('admin.payroll.settings.update')

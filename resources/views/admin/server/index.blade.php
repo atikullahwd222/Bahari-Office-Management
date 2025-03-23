@@ -41,9 +41,6 @@
                             @foreach($servers as $server)
                                 <tr>
                                     <td>
-                                        <div id="server-status-{{ $server->id }}" data-server-ip="{{ $server->ip }}">
-                                            <span class="badge bg-secondary">Checking...</span>
-                                        </div>
                                         {{ $server->name }}
                                     </td>
                                     <td>{{ $server->hostname }}</td>
@@ -83,7 +80,7 @@
     <script>
         document.addEventListener('DOMContentLoaded', function() {
        // Handle delete button clicks
-        document.querySelectorAll('.delete-server').forEach(button => {
+                    document.querySelectorAll('.delete-server').forEach(button => {
                         button.addEventListener('click', function() {
                             const serverId = this.dataset.serverId;
                             const serverPurpose = this.dataset.serverPurpose;
@@ -132,31 +129,6 @@
                 console.error('Failed to copy text: ', err);
             });
         }
-
-        function checkServerStatus(ip, elementId) {
-            fetch(`/server-status/${ip}`)
-                .then(response => response.json())
-                .then(data => {
-                    let statusBadge = document.getElementById(elementId);
-                    if (data.status === 'Online') {
-                        statusBadge.innerHTML = '<span class="badge bg-success">Online</span>';
-                    } else {
-                        statusBadge.innerHTML = '<span class="badge bg-danger">Offline</span>';
-                    }
-                })
-                .catch(error => console.error('Error checking server status:', error));
-            }
-
-            function refreshStatuses() {
-                document.querySelectorAll("[data-server-ip]").forEach(element => {
-                    let ip = element.getAttribute("data-server-ip");
-                    checkServerStatus(ip, element.id);
-                });
-        }
-
-        // Refresh status every 10 seconds
-        setInterval(refreshStatuses, 1000);
-        window.onload = refreshStatuses;
     </script>
     @endpush
     

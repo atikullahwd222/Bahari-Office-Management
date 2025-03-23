@@ -20,33 +20,8 @@ class ServerController extends Controller
         } else {
             $servers = Server::all();
         }
-
-        // Check server reachability
-        foreach ($servers as $server) {
-            $server->serverStatus = $this->pingServer($server->ip);
-        }
-
         return view('admin.server.index', compact('servers'));
     }
-
-    /**
-     * Function to ping a server and check if it is reachable.
-     */
-    private function pingServer($ip)
-    {
-        // Detect OS
-        if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
-            // Windows command (-n 1 means only send 1 ping)
-            $pingResult = shell_exec("ping -n 1 $ip");
-            return (strpos($pingResult, 'TTL=') !== false) ? 'Online' : 'Offline';
-        } else {
-            // Linux/macOS command (-c 1 sends 1 packet)
-            $pingResult = shell_exec("ping -c 1 -W 1 $ip");
-            return (strpos($pingResult, '1 received') !== false) ? 'Online' : 'Offline';
-        }
-    }
-
-
 
     public function create()
     {
@@ -151,54 +126,127 @@ class ServerController extends Controller
 //     return $response;
 // }
 
-public function exec(Request $request, $serverId) 
+public function exicute(Request $request, $serverId) 
 {
-    // Get server details from database
     $server = Server::findOrFail($serverId);
+    $command = $request->input('command');
+    
+    // Create command lock before SSH connection
+    $commandKey = 'command_lock_' . md5($command . $request->ip() . $serverId);
+    if (cache()->has($commandKey)) {
+        return response()->json(['error' => 'Command is already running'], 429);
+    }
+
+    // Set command lock with longer timeout
+    cache()->put($commandKey, true, now()->addMinutes(5));
 
     try {
-        // Create SSH connection with server credentials
-        $ssh = new SSH2($server->ip);
-
-        // Authenticate via SSH
+        $ssh = new SSH2($server->ip, $server->port);
+        $ssh->setTimeout(30);
+        
         if (!$ssh->login($server->username, $server->password)) {
+            cache()->forget($commandKey);
             return response()->json(['error' => 'SSH login failed'], 500);
         }
 
-        // Start streamed response
-        $response = new StreamedResponse(function() use ($ssh, $request) {
-            $command = $request->input('command', 'apt update');
-
-            // Set headers for EventSource
-            header('Content-Type: text/event-stream');
-            header('Cache-Control: no-cache');
-            header('Connection: keep-alive');
-            
-            // Clean output buffer
-            if (ob_get_level()) ob_end_clean();
-
-            // Execute SSH command and stream output
-            $ssh->exec($command, function($data) {
-                if (!empty($data)) {
+        return new StreamedResponse(function() use ($ssh, $request, $commandKey) {
+            try {
+                header('Content-Type: text/event-stream');
+                header('Cache-Control: no-cache');
+                header('Connection: keep-alive');
+                header('X-Accel-Buffering: no');
+                
+                echo "data: Connected\n\n";
+                flush();
+                
+                $command = $request->input('command');
+                if (ob_get_level()) ob_end_clean();
+                
+                $ssh->exec($command, function($data) {
                     $cleanData = trim($data);
-                    
-                    // Skip HTML content
-                    if (strpos($cleanData, '<') !== false || strpos($cleanData, '>') !== false) {
-                        return;
+                    if (!empty($cleanData) && strpos($cleanData, '<') === false && strpos($cleanData, '>') === false) {
+                        echo "data: $cleanData\n\n";
+                        flush();
                     }
+                });
 
-                    echo "data: " . $cleanData . "\n\n";
-                    flush();
-                }
-            });
-        });
-
-        return $response;
-
+                echo "data: Command completed\n\n";
+                flush();
+            } finally {
+                cache()->forget($commandKey);
+                $ssh->disconnect();
+            }
+        }, 200, [
+            'Cache-Control' => 'no-cache',
+            'X-Accel-Buffering' => 'no'
+        ]);
     } catch (\Exception $e) {
+        cache()->forget($commandKey);
         Log::error('SSH command failed: ' . $e->getMessage());
-        return response()->json(['error' => 'SSH connection failed'], 500);
+        return response()->json(['error' => 'SSH connection failed: ' . $e->getMessage()], 500);
     }
 }
+
+// public function exec(Request $request, $serverId) 
+// {
+//     $server = Server::findOrFail($serverId);
+
+//     try {
+//         $ssh = new SSH2($server->ip, $server->port);
+//         $ssh->setTimeout(30); // Set timeout to 30 seconds
+        
+//         if (!$ssh->login($server->username, $server->password)) {
+//             Log::error('SSH login failed for server: ' . $server->ip);
+//             return response()->json(['error' => 'SSH login failed'], 500);
+//         }
+
+//         return new StreamedResponse(function() use ($ssh, $request) {
+//             header('Content-Type: text/event-stream');
+//             header('Cache-Control: no-cache');
+//             header('Connection: keep-alive');
+//             header('X-Accel-Buffering: no'); // Disable nginx buffering
+
+//             $command = $request->input('command');
+//             if (empty($command)) {
+//                 echo "data: No command provided\n\n";
+//                 flush();
+//                 return;
+//             }
+
+//             if (ob_get_level()) ob_end_clean();
+
+//             // Send initial connection message
+//             echo "data: Connection established\n\n";
+//             flush();
+
+//             // Keep-alive ping
+//             while (true) {
+//                 // Execute SSH command and stream output live
+//                 $ssh->exec($command, function($data) {
+//                     $lines = explode("\n", trim($data));
+//                     foreach ($lines as $line) {
+//                         $cleanData = trim($line);
+//                         if (!empty($cleanData)) {
+//                             echo "data: $cleanData\n\n";
+//                             flush();
+//                         }
+//                     }
+//                 });
+
+//                 // Send keep-alive ping every 30 seconds
+//                 echo "data: ping\n\n";
+//                 flush();
+//                 sleep(30);
+//             }
+//         }, 200, [
+//             'Cache-Control' => 'no-cache',
+//             'X-Accel-Buffering' => 'no',
+//         ]);
+//     } catch (\Exception $e) {
+//         Log::error('SSH command failed: ' . $e->getMessage());
+//         return response()->json(['error' => 'SSH connection failed'], 500);
+//     }
+// }
+
  
 }
