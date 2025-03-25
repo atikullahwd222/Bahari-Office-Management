@@ -15,6 +15,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Mail;
 use App\Mail\PayrollPaidNotification;
+use App\Mail\EmployeeSalaryPaidNotification;
 
 class PayrollOverviewController extends Controller
 {
@@ -187,15 +188,6 @@ class PayrollOverviewController extends Controller
                 } catch (\Exception $e) {
                     // [Same error handling]
                 }
-            }
-
-            // Send email report
-            if ($generatedCount > 0) {
-                Mail::to(config('mail.admin_email'))->send(new PayrollGenerationReport(
-                    $reportData,
-                    $today->format('F Y'),
-                    $generatedCount
-                ));
             }
 
             return response()->json([
@@ -481,6 +473,98 @@ class PayrollOverviewController extends Controller
                         'payroll_id' => $payroll->id,
                         'old_status' => $oldStatus,
                         'new_status' => 'paid'
+                    ]);
+                }
+            }
+
+            // Send email notification
+            $company = $payroll->company_uid;
+            $user = User::where('company_uid', $company)->first();
+
+            if($payroll->type === 'salary'){
+                try {
+                    $employee = EmployeeSetup::find($payroll->reference_id);
+                    $employee_user = User::where('id', $employee->employee_id)->first();
+
+                    $mailDataEmployee = [
+                        'type' => 'single_payment',
+                        'name' => $employee_user->first_name . ' ' . $employee_user->last_name,
+                        'month' => Carbon::now()->format('F Y'),
+                        'amount' => number_format($payroll->amount, 2),
+                        'total_amount' => number_format($payroll->amount, 2),
+                        'payment_date' => Carbon::now()->format('Y-m-d'),
+                        'payment_method' => 'Online Gateway',
+                        'payroll_count' => 1,
+                        'payroll_details' => [[
+                            'type' => $payroll->type,
+                            'reference_id' => $payroll->reference_id,
+                            'purpose' => $this->getPaymentPurpose($payroll->type, $payroll->reference_id),
+                            'pay_to' => $employee_user->first_name . ' ' . $employee_user->last_name,
+                            'due_date' => $payroll->due_date,
+                            'status' => 'paid',
+                            'previous_status' => $payroll->status,
+                            'amount' => $payroll->amount,
+                            'payment_date' => Carbon::now()->format('Y-m-d')
+                        ]]
+                    ];
+
+                    Mail::to($employee_user->email)
+                        ->send(new EmployeeSalaryPaidNotification($mailDataEmployee));
+
+                    \Log::info('Single payroll notification sent', [
+                        'company_uid' => $company,
+                        'email' => $employee_user->email,
+                        'amount' => $payroll->amount,
+                        'payroll_id' => $payroll->id
+                    ]);
+
+                } catch (\Exception $e) {
+                    \Log::error('Email send failed:', [
+                        'error' => $e->getMessage(),
+                        'company_uid' => $company
+                    ]);
+                }
+            }
+
+            if ($user) {
+                $company_name = $user->company->name ?? 'Company';
+                try {
+                    $mailData = [
+                        'type' => 'single_payment',
+                        'name' => $company_name,
+                        'month' => Carbon::now()->format('F Y'),
+                        'amount' => number_format($payroll->amount, 2),
+                        'total_amount' => number_format($payroll->amount, 2),
+                        'payment_date' => Carbon::now()->format('Y-m-d'),
+                        'payment_method' => 'Bank Transfer',
+                        'payroll_count' => 1,
+                        'payroll_details' => [[
+                            'type' => $payroll->type,
+                            'reference_id' => $payroll->reference_id,
+                            'purpose' => $this->getPaymentPurpose($payroll->type, $payroll->reference_id),
+                            'pay_to' => $this->getPayeeInfo($payroll->type, $payroll->reference_id),
+                            'due_date' => $payroll->due_date,
+                            'status' => 'paid',
+                            'previous_status' => $payroll->status,
+                            'amount' => $payroll->amount,
+                            'payment_date' => Carbon::now()->format('Y-m-d')
+                        ]]
+                    ];
+
+                    Mail::to($user->email)
+                        ->send(new PayrollPaidNotification($mailData));
+
+                    \Log::info('Single payroll notification sent', [
+                        'company_uid' => $company,
+                        'email' => $user->email,
+                        'amount' => $payroll->amount,
+                        'payroll_id' => $payroll->id
+                    ]);
+
+                } catch (\Exception $e) {
+                    \Log::error('Email send failed:', [
+                        'error' => $e->getMessage(),
+                        'company_uid' => $company
                     ]);
                 }
             }
