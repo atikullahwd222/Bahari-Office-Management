@@ -13,6 +13,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Mail;
+use App\Mail\PayrollPaidNotification;
 
 class PayrollOverviewController extends Controller
 {
@@ -69,14 +71,6 @@ class PayrollOverviewController extends Controller
             ]);
         }
 
-        // $previousDate = $selectedDate->copy()->subMonth();
-        // $previousPaidPayroll = (clone $query)
-        //     ->where('status', 'paid')
-        //     ->whereYear('updated_at', $previousDate->year)
-        //     ->whereMonth('updated_at', $previousDate->month)
-        //     ->orderByDesc('updated_at')
-        //     ->get();
-    
         $totalMonthlyExpense = (clone $query)
         ->where('type', 'expense')
         ->where('status', 'paid')
@@ -123,6 +117,105 @@ class PayrollOverviewController extends Controller
         ));
     }
     
+    public function payrollCron(){
+        try {
+            $today = Carbon::today();
+            $startOfMonth = $today->copy()->startOfMonth();
+            $endOfMonth = $today->copy()->endOfMonth();
+            $generatedCount = 0;
+            $reportData = [
+                'oneTimeExpenses' => 0,
+                'monthlyExpenses' => 0,
+                'salaries' => 0,
+                'totalAmount' => 0
+            ];
+
+            \Log::info('Starting Payroll Generation:', [
+                'month' => $today->format('F Y')
+            ]);
+
+            // [Previous one-time expenses code remains the same until the foreach]
+            foreach ($oneTimeExpenses as $expense) {
+                try {
+                    DB::beginTransaction();
+                    // [Previous code remains the same]
+                    if (!$existingPayroll) {
+                        Payroll::create([/* same creation code */]);
+                        $generatedCount++;
+                        $reportData['oneTimeExpenses']++;
+                        $reportData['totalAmount'] += $expense->amount;
+                        $expense->date = Carbon::parse($expense->date)->addMonth();
+                        $expense->save();
+                    }
+                    DB::commit();
+                } catch (\Exception $e) {
+                    // [Same error handling]
+                }
+            }
+
+            // [Previous monthly expenses code remains the same until the foreach]
+            foreach ($monthlyExpenses as $expense) {
+                try {
+                    DB::beginTransaction();
+                    // [Previous code remains the same]
+                    if (!$existingPayroll) {
+                        Payroll::create([/* same creation code */]);
+                        $generatedCount++;
+                        $reportData['monthlyExpenses']++;
+                        $reportData['totalAmount'] += $expense->amount;
+                        $expense->date = Carbon::parse($expense->date)->addMonth();
+                        $expense->save();
+                    }
+                    DB::commit();
+                } catch (\Exception $e) {
+                    // [Same error handling]
+                }
+            }
+
+            // [Previous employee salaries code remains the same until the foreach]
+            foreach ($employees as $employee) {
+                try {
+                    DB::beginTransaction();
+                    // [Previous code remains the same]
+                    $payroll = Payroll::create([/* same creation code */]);
+                    $generatedCount++;
+                    $reportData['salaries']++;
+                    $reportData['totalAmount'] += $employee->salary;
+                    $employee->due_date = Carbon::parse($employee->due_date)->addMonth();
+                    $employee->save();
+                    DB::commit();
+                } catch (\Exception $e) {
+                    // [Same error handling]
+                }
+            }
+
+            // Send email report
+            if ($generatedCount > 0) {
+                Mail::to(config('mail.admin_email'))->send(new PayrollGenerationReport(
+                    $reportData,
+                    $today->format('F Y'),
+                    $generatedCount
+                ));
+            }
+
+            return response()->json([
+                'status' => 'success',
+                'message' => "Generated $generatedCount payroll entries and sent report"
+            ]);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            \Log::error('Payroll Generation Error:', [
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Failed to generate payroll: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
     public function generatePayroll()
     {
         try {
@@ -443,11 +536,13 @@ class PayrollOverviewController extends Controller
 
             DB::beginTransaction();
 
+            $totalAmount = 0;
             foreach ($payrolls as $payroll) {
                 // Update payroll status
                 $payroll->status = 'paid';
                 $payroll->paid_date = Carbon::now();
                 $payroll->save();
+                $totalAmount += $payroll->amount;
 
                 // Update one-time expense status if applicable
                 if ($payroll->type === 'expense') {
@@ -466,6 +561,48 @@ class PayrollOverviewController extends Controller
                     }
                 }
             }
+
+            // Send email notification
+            foreach ($payrolls as $payroll) {
+                $company = $payroll->company_uid;
+                $user = User::where('company_uid', $company)->first();
+                
+                if ($user) {
+                    try {
+                        $mailData = [
+                            'name' => $user->name,
+                            'month' => $payroll->due_date,
+                            'amount' => number_format($payroll->amount, 2),
+                            'total_amount' => number_format($totalAmount, 2),
+                            'payment_date' => Carbon::now()->format('Y-m-d'),
+                            'payment_method' => 'Bank Transfer',
+                            'payroll_details' => [
+                                'type' => $payroll->type,
+                                'reference_id' => $payroll->reference_id,
+                                'due_date' => $payroll->due_date,
+                                'status' => $payroll->status
+                            ]
+                        ];
+
+                        Mail::to($user->email)
+                            ->send(new PayrollPaidNotification($mailData));
+
+                        \Log::info('Payroll notification sent', [
+                            'company_uid' => $company,
+                            'email' => $user->email,
+                            'total_amount' => $totalAmount,
+                            'payroll_id' => $payroll->id
+                        ]);
+
+                    } catch (\Exception $e) {
+                        \Log::error('Email send failed:', [
+                            'error' => $e->getMessage(),
+                            'payroll_id' => $payroll->id
+                        ]);
+                    }
+                }
+            }
+            
 
             DB::commit();
 

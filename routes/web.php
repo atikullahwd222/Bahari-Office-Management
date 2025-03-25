@@ -75,20 +75,22 @@ Route::prefix('admin')->middleware(['auth', 'admin'])->group(function (): void {
     Route::post('/payroll/generate', [PayrollOverviewController::class, 'generatePayroll'])->name('admin.payroll.generate');
     Route::post('/payroll/{id}/mark-as-paid', [PayrollOverviewController::class, 'markAsPaid'])->name('admin.payroll.mark-as-paid');
     Route::post('/payroll/bulk-mark-as-paid', [PayrollOverviewController::class, 'bulkMarkAsPaid'])->name('admin.payroll.bulk-mark-as-paid');
-
+    
     Route::get('/server/commands', [CommandController::class, 'index'])->name('admin.server.commands');
     Route::get('/server/commands/create', [CommandController::class, 'create'])->name('admin.server.commands.create');
     Route::post('/server/commands/store', [CommandController::class, 'store'])->name('admin.server.commands.store');
     Route::get('/server/commands/edit/{id}', [CommandController::class, 'edit'])->name('admin.server.commands.edit');
     Route::post('/server/commands/update/{id}', [CommandController::class, 'update'])->name('admin.server.commands.update');
     Route::delete('/server/commands/delete/{id}', [CommandController::class, 'destroy'])->name('admin.server.commands.delete');
-
+    
 });
 
 // Server Managment routes
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/server', [ServerController::class, 'index'])->name('admin.server.index');
 });
+
+Route::get('/payroll/cron', [PayrollOverviewController::class, 'payrollCron'])->name('admin.payroll.payrollCron');
 
 Route::post('/admin/payroll/settings/update', [PayrollOverviewController::class, 'updateSettings'])
     ->name('admin.payroll.settings.update')
