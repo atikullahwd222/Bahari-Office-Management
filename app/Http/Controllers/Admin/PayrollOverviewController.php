@@ -563,43 +563,51 @@ class PayrollOverviewController extends Controller
             }
 
             // Send email notification
-            foreach ($payrolls as $payroll) {
-                $company = $payroll->company_uid;
-                $user = User::where('company_uid', $company)->first();
-                
-                if ($user) {
-                    try {
-                        $mailData = [
-                            'name' => $user->name,
-                            'month' => $payroll->due_date,
-                            'amount' => number_format($payroll->amount, 2),
-                            'total_amount' => number_format($totalAmount, 2),
-                            'payment_date' => Carbon::now()->format('Y-m-d'),
-                            'payment_method' => 'Bank Transfer',
-                            'payroll_details' => [
-                                'type' => $payroll->type,
-                                'reference_id' => $payroll->reference_id,
-                                'due_date' => $payroll->due_date,
-                                'status' => $payroll->status
-                            ]
-                        ];
+            // Collect data for all payrolls first
+            $company = $payrolls->first()->company_uid;
+            $user = User::where('company_uid', $company)->first();
+            
+            if ($user) {
+                try {
+                    $mailData = [
+                        'type' => 'bulk_payment',
+                        'name' => $user->name,
+                        'month' => Carbon::now()->format('F Y'),
+                        'amount' => number_format($payrolls->sum('amount'), 2),
+                        'total_amount' => number_format($totalAmount, 2),
+                        'payment_date' => Carbon::now()->format('Y-m-d'),
+                        'payment_method' => 'Bank Transfer',
+                        'payroll_count' => $payrolls->count(),
+                        'payroll_details' => $payrolls->map(function($p) {
+                            return [
+                                'type' => $p->type,
+                                'reference_id' => $p->reference_id,
+                                'purpose' => $this->getPaymentPurpose($p->type, $p->reference_id),
+                                'pay_to' => $this->getPayeeInfo($p->type, $p->reference_id),
+                                'due_date' => $p->due_date,
+                                'status' => 'paid', // Since this is for paid notification
+                                'previous_status' => $p->status,
+                                'amount' => $p->amount,
+                                'payment_date' => Carbon::now()->format('Y-m-d')
+                            ];
+                        })->toArray()
+                    ];
 
-                        Mail::to($user->email)
-                            ->send(new PayrollPaidNotification($mailData));
+                    Mail::to($user->email)
+                        ->send(new PayrollPaidNotification($mailData));
 
-                        \Log::info('Payroll notification sent', [
-                            'company_uid' => $company,
-                            'email' => $user->email,
-                            'total_amount' => $totalAmount,
-                            'payroll_id' => $payroll->id
-                        ]);
+                    \Log::info('Bulk payroll notification sent', [
+                        'company_uid' => $company,
+                        'email' => $user->email,
+                        'total_amount' => $totalAmount,
+                        'payroll_count' => $payrolls->count()
+                    ]);
 
-                    } catch (\Exception $e) {
-                        \Log::error('Email send failed:', [
-                            'error' => $e->getMessage(),
-                            'payroll_id' => $payroll->id
-                        ]);
-                    }
+                } catch (\Exception $e) {
+                    \Log::error('Bulk email send failed:', [
+                        'error' => $e->getMessage(),
+                        'company_uid' => $company
+                    ]);
                 }
             }
             
@@ -688,5 +696,39 @@ class PayrollOverviewController extends Controller
                 'updated_by' => auth()->id()
             ];
         });
+    }
+
+    private function getPaymentPurpose($type, $referenceId)
+    {
+        switch ($type) {
+            case 'salary':
+                $employee = EmployeeSetup::find($referenceId);
+                return $employee ? 'Salary Payment' : 'Unknown';
+            case 'expense':
+                $expense = MonthlyExpens::find($referenceId);
+                return $expense ? $expense->description : 'Unknown';
+            case 'onetime-expense':
+                $expense = OnetimeExpens::find($referenceId);
+                return $expense ? $expense->description : 'Unknown';
+            default:
+                return 'Unknown Payment Type';
+        }
+    }
+
+    private function getPayeeInfo($type, $referenceId)
+    {
+        switch ($type) {
+            case 'salary':
+                $employee = EmployeeSetup::with('employee')->find($referenceId);
+                return $employee ? $employee->employee->name : 'Unknown';
+            case 'expense':
+                $expense = MonthlyExpens::find($referenceId);
+                return $expense ? $expense->recipient : 'Unknown';
+            case 'onetime-expense':
+                $expense = OnetimeExpens::find($referenceId);
+                return $expense ? $expense->recipient : 'Unknown';
+            default:
+                return 'Unknown Recipient';
+        }
     }
 }

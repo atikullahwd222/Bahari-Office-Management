@@ -39,14 +39,24 @@
             <li><strong>Total Amount:</strong> {{ $total_amount }}</li>
             <li><strong>Payment Date:</strong> {{ $payment_date }}</li>
             <li><strong>Payment Method:</strong> {{ $payment_method }}</li>
+            <li><strong>Number of Payroll Items:</strong> {{ $payroll_count }}</li>
         </ul>
-        <p><strong>Payroll Information:</strong></p>
-        <ul>
-            <li><strong>Type:</strong> {{ $payroll_details['type'] }}</li>
-            <li><strong>Reference ID:</strong> {{ $payroll_details['reference_id'] }}</li>
-            <li><strong>Due Date:</strong> {{ $payroll_details['due_date'] }}</li>
-            <li><strong>Status:</strong> {{ $payroll_details['status'] }}</li>
-        </ul>
+
+        <p><strong>Payroll Details:</strong></p>
+        @foreach($payroll_details as $detail)
+        <div style="margin-bottom: 15px; padding: 10px; border: 1px solid #eee;">
+            <ul>
+                <li><strong>Type:</strong> {{ $detail['type'] }}</li>
+                <li><strong>Reference ID:</strong> {{ $detail['reference_id'] }}</li>
+                <li><strong>Purpose:</strong> {{ $detail['purpose'] }}</li>
+                {{-- <li><strong>Pay To:</strong> {{ $detail['pay_to'] }}</li> --}}
+                <li><strong>Due Date:</strong> {{ $detail['due_date'] }}</li>
+                <li><strong>Status:</strong> {{ $detail['status'] }}</li>
+                <li><strong>Amount:</strong> {{ number_format($detail['amount'], 2) }}</li>
+            </ul>
+        </div>
+        @endforeach
+
         <p>If you have any questions or concerns regarding this payment, please feel free to contact the HR department.</p>
         <p>Thank you for your hard work and dedication.</p>
         <p>Best regards,</p>
